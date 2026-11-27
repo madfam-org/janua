@@ -13,8 +13,14 @@ describe('ComparisonSection', () => {
   it('should render comparison content', () => {
     render(<ComparisonSection />)
     // Test that the component renders basic comparison elements
-    expect(screen.getByText('Built different. Performs better.')).toBeInTheDocument()
+    expect(screen.getByText('How Janua compares')).toBeInTheDocument()
     expect(screen.getByText('Janua')).toBeInTheDocument()
-    expect(screen.getByText('Performance')).toBeInTheDocument()
+    expect(screen.getByText('Features')).toBeInTheDocument()
+  })
+
+  it('publishes no unmeasured latency or edge-location figures', () => {
+    const { container } = render(<ComparisonSection />)
+    const text = container.textContent ?? ''
+    expect(text).not.toMatch(/Edge Verification|Global Edge PoPs|<30ms|150\+/)
   })
 })

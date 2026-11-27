@@ -1,7 +1,7 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { ArrowRight, ShoppingCart, Shield, Zap, Globe, CreditCard, Users, BarChart3 } from 'lucide-react'
+import { ArrowRight, ShoppingCart, Shield, CreditCard, Users, BarChart3 } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'E-commerce Authentication | Janua',
@@ -56,27 +56,17 @@ export default function EcommercePage() {
       <section className="py-20 bg-slate-50 dark:bg-slate-900/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center text-slate-900 dark:text-white mb-16">
-            Why E-commerce Businesses Choose Janua
+            Why Janua for E-commerce
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <BarChart3 className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
               <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Reduce Cart Abandonment</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Streamlined auth flows reduce checkout friction by up to 40%
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Zap className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-              </div>
-              <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Lightning Fast</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Sub-30ms authentication response times globally
+                Streamlined auth flows reduce checkout friction
               </p>
             </div>
 
@@ -87,16 +77,6 @@ export default function EcommercePage() {
               <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Bank-Grade Security</h3>
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 WebAuthn passkeys eliminate password-based vulnerabilities
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Globe className="w-8 h-8 text-amber-600 dark:text-amber-400" />
-              </div>
-              <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Global Scale</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
-                Edge deployment across 100+ locations worldwide
               </p>
             </div>
           </div>

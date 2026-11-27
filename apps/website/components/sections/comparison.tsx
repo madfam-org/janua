@@ -14,32 +14,6 @@ export function ComparisonSection() {
 
   const metrics = [
     {
-      category: 'Performance',
-      items: [
-        {
-          metric: 'Edge Verification',
-          janua: '<30ms',
-          clerk: '50-100ms',
-          auth0: '80-150ms',
-          supabase: '60-120ms'
-        },
-        {
-          metric: 'Global Edge PoPs',
-          janua: '150+',
-          clerk: '~30',
-          auth0: '~20',
-          supabase: '~15'
-        },
-        {
-          metric: 'Time to First Auth',
-          janua: '5 min',
-          clerk: '30 min',
-          auth0: '45 min',
-          supabase: '20 min'
-        }
-      ]
-    },
-    {
       category: 'Features',
       items: [
         {
@@ -48,13 +22,6 @@ export function ComparisonSection() {
           clerk: 'Add-on',
           auth0: 'Beta',
           supabase: 'Planned'
-        },
-        {
-          metric: 'Multi-Region Data',
-          janua: true,
-          clerk: false,
-          auth0: true,
-          supabase: false
         },
         {
           metric: 'Event Sourcing',
@@ -159,7 +126,7 @@ export function ComparisonSection() {
           transition={{ duration: 0.5 }}
         >
           <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Built different. Performs better.
+            How Janua compares
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
             See how Janua compares to other identity platforms. 

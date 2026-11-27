@@ -5,7 +5,6 @@ import {
   Shield,
   Zap,
   DollarSign,
-  Globe,
   Lock,
   CheckCircle,
   ArrowRight,
@@ -25,7 +24,6 @@ const benefits = [
     icon: DollarSign,
     title: 'Predictable Costs',
     description: 'Flat monthly fee instead of per-MAU pricing. Know exactly what you\'ll pay at any scale.',
-    highlight: 'Save 70%+ at scale vs Auth0/Clerk',
   },
   {
     icon: Shield,
@@ -38,12 +36,6 @@ const benefits = [
     title: 'One-Click Deploy',
     description: 'Enclii\'s deployment system gets Janua running in minutes, not days.',
     highlight: '< 5 minute setup',
-  },
-  {
-    icon: Globe,
-    title: 'Edge-Ready',
-    description: 'Deploy Janua close to your users with Enclii\'s multi-region support.',
-    highlight: '< 50ms auth latency globally',
   },
 ]
 
@@ -169,11 +161,7 @@ export default function DeployOnEncliiPage() {
             </div>
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-              <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-                <div className="text-3xl font-bold text-blue-400">70%+</div>
-                <div className="text-sm text-gray-400">Cost Savings at Scale</div>
-              </div>
+            <div className="grid grid-cols-2 gap-6 max-w-2xl mx-auto">
               <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
                 <div className="text-3xl font-bold text-green-400">&lt;5min</div>
                 <div className="text-sm text-gray-400">Deploy Time</div>
@@ -181,10 +169,6 @@ export default function DeployOnEncliiPage() {
               <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
                 <div className="text-3xl font-bold text-purple-400">100%</div>
                 <div className="text-sm text-gray-400">Data Ownership</div>
-              </div>
-              <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-                <div className="text-3xl font-bold text-cyan-400">∞</div>
-                <div className="text-sm text-gray-400">Users Supported</div>
               </div>
             </div>
           </div>
@@ -256,9 +240,11 @@ export default function DeployOnEncliiPage() {
                   <div>
                     <h3 className="text-xl font-semibold text-white mb-2">{benefit.title}</h3>
                     <p className="text-gray-400 mb-3">{benefit.description}</p>
-                    <span className="inline-block px-3 py-1 bg-green-500/10 text-green-400 text-sm rounded-full">
-                      {benefit.highlight}
-                    </span>
+                    {benefit.highlight && (
+                      <span className="inline-block px-3 py-1 bg-green-500/10 text-green-400 text-sm rounded-full">
+                        {benefit.highlight}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

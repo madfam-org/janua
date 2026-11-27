@@ -169,25 +169,13 @@ export default function EnterprisePage() {
               </div>
 
               <div className="flex gap-4">
-                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Globe className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Global Data Residency</h3>
-                  <p className="text-slate-600 dark:text-slate-400">
-                    Choose where your data is stored and processed to meet regional compliance requirements.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Award className="w-6 h-6 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Dedicated Support</h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    24/7 dedicated support team with guaranteed response times and technical account management.
+                    Support terms are agreed per contract. No response time is published while Janua is in Private Alpha.
                   </p>
                 </div>
               </div>
@@ -203,7 +191,6 @@ export default function EnterprisePage() {
             Ready for Enterprise Authentication?
           </h2>
           <p className="text-lg text-slate-600 dark:text-slate-300 mb-10">
-            Join Fortune 500 companies using Janua to secure their organizations.
             Let's discuss your specific requirements and compliance needs.
           </p>
 

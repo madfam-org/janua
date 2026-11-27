@@ -4,7 +4,12 @@
 
 The Janua marketing site serves as the primary entry point for developers discovering our identity platform. It must communicate our technical superiority, demonstrate ease of integration, and drive conversions through a compelling developer experience.
 
-**Core Value Proposition**: "The secure substrate for identity — Edge-fast verification with full control"
+**Core Value Proposition**: "The secure substrate for identity — verification you control"
+
+> **Proof policy.** Janua publishes no testimonial, customer logo, adoption figure, uptime
+> figure or service level unless it comes from a real, consenting customer or a measured
+> figure. Janua runs on MADFAM's own cluster; the site does not claim edge deployment or a
+> number of edge locations. Placeholders for proof stay empty until that evidence exists.
 
 ---
 
@@ -32,7 +37,7 @@ janua.dev/api/v1/*            # API endpoints
 - **Animations**: Framer Motion
 - **Analytics**: Plausible (privacy-first)
 - **CMS**: MDX for blog/docs
-- **Deployment**: Vercel Edge Functions
+- **Deployment**: MADFAM's own cluster (not an edge network)
 
 ---
 
@@ -57,36 +62,17 @@ interface HeroSection {
     style: "outline"
   }
   
-  metrics: [
-    { value: "<30ms", label: "Edge Verification" },
-    { value: "5 min", label: "Integration Time" },
-    { value: "99.99%", label: "Uptime SLA" }
-  ]
-  
-  heroVisual: "Interactive latency map showing global edge performance"
+  // No latency, uptime or SLA figure until one is measured and published.
+  metrics: []
 }
 ```
 
 ### 2. Trust Indicators
 
-```typescript
-interface TrustSection {
-  headline: "Trusted by teams shipping at scale"
-  
-  logos: [
-    "MADFAM",
-    "Forge Sight",
-    "Innovaciones MADFAM",
-    // Partner logos
-  ]
-  
-  stats: {
-    identitiesManaged: "10M+",
-    requestsPerSecond: "50K+",
-    globalEdgeLocations: "150+"
-  }
-}
-```
+Not built yet. A trust section needs real, consenting customers (named with written
+permission) and measured figures (identities managed, request rates, uptime). Until both
+exist the site shows no logos, no adoption counts and no scale statistics. See the proof
+policy above.
 
 ### 3. Core Features Grid
 
@@ -95,12 +81,6 @@ interface FeatureSection {
   headline: "Everything you need, nothing you don't"
   
   features: [
-    {
-      icon: "🚀",
-      title: "Edge-Native Performance",
-      description: "JWT verification in <30ms globally. 3x faster than Clerk.",
-      link: "/docs/edge-verification"
-    },
     {
       icon: "🔐",
       title: "Passkeys First",
@@ -185,7 +165,7 @@ interface PlaygroundSection {
     type: "embedded",
     features: [
       "JWT token generation",
-      "Edge verification simulation",
+      "Token verification",
       "Passkey flow demo",
       "Policy evaluation"
     ],
@@ -215,20 +195,6 @@ interface ComparisonSection {
     competitors: ["Clerk", "Auth0", "Supabase Auth"],
     
     metrics: [
-      {
-        metric: "Edge Verification",
-        janua: "<30ms",
-        clerk: "50-100ms",
-        auth0: "80-150ms",
-        supabase: "60-120ms"
-      },
-      {
-        metric: "Global PoPs",
-        janua: "150+",
-        clerk: "~30",
-        auth0: "~20",
-        supabase: "~15"
-      },
       {
         metric: "Free Tier MAU",
         janua: "10,000",
@@ -304,7 +270,7 @@ interface PricingSection {
     {
       name: "Enterprise",
       price: "Custom",
-      features: ["SSO/SCIM", "99.99% SLA", "Dedicated support", "Region pinning"],
+      features: ["SSO/SCIM", "Terms negotiated per contract", "Region pinning"],
       cta: "Contact sales"
     }
   ]
@@ -318,32 +284,9 @@ interface PricingSection {
 
 ### 9. Social Proof
 
-```typescript
-interface TestimonialSection {
-  headline: "Developers love the experience"
-  
-  testimonials: [
-    {
-      quote: "Migrated from Clerk in 2 days. 3x faster verification, half the cost.",
-      author: "Sarah Chen",
-      role: "CTO, TechStartup",
-      avatar: "/testimonials/sarah.jpg"
-    },
-    {
-      quote: "Finally, an auth solution that doesn't lock in our data.",
-      author: "Marcus Rodriguez",
-      role: "Lead Engineer, ScaleUp",
-      avatar: "/testimonials/marcus.jpg"
-    }
-  ]
-  
-  caseStudy: {
-    company: "Forge Sight",
-    metric: "60% faster auth",
-    link: "/customers/forge-sight"
-  }
-}
-```
+Not built yet. Testimonials and case studies need a real customer who agreed in writing to
+be quoted, and any figure in them must be measured. The earlier placeholder quotes, names
+and the case-study metric were invented and are removed. See the proof policy above.
 
 ### 10. Call to Action
 
@@ -371,9 +314,7 @@ interface CTASection {
 ## Interactive Elements
 
 ### 1. Latency Globe
-- Interactive 3D globe showing edge locations
-- Real-time latency measurements
-- Click to test from different regions
+- Removed: Janua has no edge network to show. Revisit only with measured latency data.
 
 ### 2. Integration Timeline
 - Animated timeline showing 5-minute setup
@@ -414,7 +355,6 @@ interface CTASection {
 interface ABTests {
   heroHeadline: [
     "Identity infrastructure that moves at the speed of your users",
-    "The edge-native identity platform",
     "Authentication that doesn't slow you down"
   ],
   
@@ -424,11 +364,8 @@ interface ABTests {
     "Create Account"
   ],
   
-  socialProof: [
-    "logoWall",
-    "testimonials",
-    "metrics"
-  ]
+  // socialProof variants (logo wall, testimonials, metrics) wait for real,
+  // consenting customers and measured figures.
 }
 ```
 
@@ -472,8 +409,7 @@ interface ABTests {
 ### Target Keywords
 - Primary: "identity platform", "authentication api"
 - Comparison: "clerk alternative", "auth0 vs janua"
-- Technical: "edge authentication", "passkey api"
-- Long-tail: "fastest jwt verification", "multi-region auth"
+- Technical: "passkey api"
 
 ### Technical SEO
 - Structured data for features

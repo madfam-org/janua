@@ -37,7 +37,6 @@ const pricingTiers: PricingTier[] = [
       'Passkey authentication',
       'Email + password auth',
       'Session management',
-      'Edge verification (<30ms)',
       'Community support',
       'Single region'
     ],
@@ -63,8 +62,7 @@ const pricingTiers: PricingTier[] = [
       'Email support',
       'Custom domain',
       'Advanced MFA (TOTP)',
-      'Audit logs (30 days)',
-      'Multi-region'
+      'Audit logs (30 days)'
     ],
     notIncluded: [
       'No SSO/SAML',
@@ -113,7 +111,6 @@ const pricingTiers: PricingTier[] = [
       'Uptime SLA negotiated per contract',
       'Audit logs (unlimited)',
       'Custom integrations',
-      'Data residency options',
       'Security reviews',
       'MSA & BAA available',
       'White-glove onboarding'
@@ -159,13 +156,6 @@ const detailedComparison: ComparisonRow[] = [
     pro: 'Social (OAuth)',
     business: 'All',
     enterprise: 'All + Custom'
-  },
-  {
-    feature: 'Edge Response Time',
-    community: '<30ms*',
-    pro: '<30ms*',
-    business: '<30ms*',
-    enterprise: '<30ms*'
   },
   {
     feature: 'Support',
@@ -485,10 +475,6 @@ export function HonestPricing() {
                 ))}
               </tbody>
             </table>
-
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-4 text-center">
-              * Edge response times based on architecture design. Production benchmarks coming soon.
-            </p>
           </motion.div>
         )}
 
