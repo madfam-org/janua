@@ -24,13 +24,6 @@ export function ComparisonSection() {
           supabase: 'Planned'
         },
         {
-          metric: 'Multi-Region Data',
-          janua: true,
-          clerk: false,
-          auth0: true,
-          supabase: false
-        },
-        {
           metric: 'Event Sourcing',
           janua: true,
           clerk: false,

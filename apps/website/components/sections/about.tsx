@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Shield, Zap, Globe, Heart, Users, Target } from 'lucide-react'
+import { Shield, Zap, Heart, Users, Target } from 'lucide-react'
 import Image from 'next/image'
 
 // Note: Image and team are defined for future use but not currently rendered
@@ -17,12 +17,7 @@ export function AboutSection() {
     {
       icon: Zap,
       title: 'Performance Obsessed',
-      description: 'Sub-30ms verification isn\'t a goal, it\'s a requirement. Speed is a feature.'
-    },
-    {
-      icon: Globe,
-      title: 'Global by Default',
-      description: 'Built for the internet, not just Silicon Valley. Multi-region from day one.'
+      description: 'Speed is a feature. We publish latency figures only once they are measured.'
     },
     {
       icon: Heart,

@@ -6,7 +6,7 @@
  * This scans the source of the rendered marketing pages and sections that
  * once carried such claims, so they do not come back unnoticed.
  */
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 
 const ROOT = join(__dirname, '..')
@@ -19,6 +19,7 @@ const FILES = [
   'components/sections/comparison.tsx',
   'components/sections/pricing.tsx',
   'components/sections/honest-pricing.tsx',
+  'components/sections/about.tsx',
 ]
 
 const BANNED: Array<[string, RegExp]> = [
@@ -30,6 +31,20 @@ const BANNED: Array<[string, RegExp]> = [
   ['guaranteed response times', /guaranteed response time/i],
   ['adoption claim', /Fortune 500|trusted by|businesses choose janua/i],
   ['unmeasured outcome figure', /by up to \d+%/i],
+  // Janua runs on a single cluster: no multi-region or data-residency offer.
+  ['multi-region claim', /multi-region/i],
+  ['data residency claim', /data residency/i],
+  // No measured savings figure exists. (A billing discount such as
+  // "Save 20%" on yearly plans is a price, not a claim, and stays allowed.)
+  ['savings percentage', /\d+%\+|cost savings|save \d+%\+?\s*(at scale|vs\b)/i],
+  ['unbounded scale claim', /users supported/i],
+]
+
+// Unused components that carried simulated edge-latency and edge-location
+// figures were deleted; they must not come back.
+const DELETED = [
+  'components/sections/performance-demo.tsx',
+  'components/demo/performance-simulator.tsx',
 ]
 
 describe('marketing pages carry no unverified claims', () => {
@@ -41,4 +56,8 @@ describe('marketing pages carry no unverified claims', () => {
       }
     })
   }
+
+  it.each(DELETED)('%s stays deleted', (file) => {
+    expect(existsSync(join(ROOT, file))).toBe(false)
+  })
 })

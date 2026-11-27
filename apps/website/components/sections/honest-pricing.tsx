@@ -62,8 +62,7 @@ const pricingTiers: PricingTier[] = [
       'Email support',
       'Custom domain',
       'Advanced MFA (TOTP)',
-      'Audit logs (30 days)',
-      'Multi-region'
+      'Audit logs (30 days)'
     ],
     notIncluded: [
       'No SSO/SAML',
@@ -112,7 +111,6 @@ const pricingTiers: PricingTier[] = [
       'Uptime SLA negotiated per contract',
       'Audit logs (unlimited)',
       'Custom integrations',
-      'Data residency options',
       'Security reviews',
       'MSA & BAA available',
       'White-glove onboarding'

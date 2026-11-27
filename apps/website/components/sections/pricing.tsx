@@ -90,8 +90,7 @@ export function PricingSection({ proMxn = null }: PricingSectionProps = {}) {
         'Best-effort uptime (SLA available with Enterprise)',
         'Custom domain',
         'Advanced MFA (TOTP)',
-        'Audit logs (30 days)',
-        'Multi-region'
+        'Audit logs (30 days)'
       ],
       limitations: [
         'No SSO/SAML',
@@ -148,7 +147,6 @@ export function PricingSection({ proMxn = null }: PricingSectionProps = {}) {
         'Uptime SLA negotiated per contract',
         'Audit logs (unlimited)',
         'Custom integrations',
-        'Data residency options',
         'Security reviews',
         'MSA & BAA available',
         'White-glove onboarding'

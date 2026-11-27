@@ -169,18 +169,6 @@ export default function EnterprisePage() {
               </div>
 
               <div className="flex gap-4">
-                <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Globe className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 dark:text-white mb-2">Global Data Residency</h3>
-                  <p className="text-slate-600 dark:text-slate-400">
-                    Choose where your data is stored and processed to meet regional compliance requirements.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-4">
                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Award className="w-6 h-6 text-green-600 dark:text-green-400" />
                 </div>
