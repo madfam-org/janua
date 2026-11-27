@@ -520,10 +520,7 @@ ES_BODY: Dict[str, str] = {
     ),
     # -- welcome ----------------------------------------------------------
     "welcome.heading": "Le damos la bienvenida a Janua 🎉",
-    "welcome.intro": (
-        "Su cuenta de Janua se creó correctamente. Ya forma parte de una plataforma de "
-        "identidad segura en la que confían organizaciones de todo el mundo."
-    ),
+    "welcome.intro": "Su cuenta de Janua se creó correctamente.",
     "welcome.account_details": "Datos de su cuenta:",
     "welcome.steps_intro": "Le sugerimos empezar por aquí para aprovechar Janua al máximo:",
     "welcome.step_mfa_title": "Active la autenticación de dos factores",
@@ -705,10 +702,7 @@ ES_TU: Dict[str, str] = {
     ),
     # -- welcome ----------------------------------------------------------
     "welcome.heading": "Te damos la bienvenida a Janua 🎉",
-    "welcome.intro": (
-        "Tu cuenta de Janua se creó correctamente. Ya formas parte de una plataforma de "
-        "identidad segura en la que confían organizaciones de todo el mundo."
-    ),
+    "welcome.intro": "Tu cuenta de Janua se creó correctamente.",
     "welcome.account_details": "Datos de tu cuenta:",
     "welcome.steps_intro": "Te sugerimos empezar por aquí para aprovechar Janua al máximo:",
     "welcome.step_mfa_title": "Activa la autenticación de dos factores",

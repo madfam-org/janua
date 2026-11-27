@@ -189,7 +189,7 @@ export default function HealthcarePage() {
               Healthcare Use Cases
             </h2>
             <p className="text-lg text-slate-600 dark:text-slate-300">
-              Trusted by healthcare organizations worldwide
+              Identity, access control and audit trails for healthcare applications
             </p>
           </div>
 

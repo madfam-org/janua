@@ -300,14 +300,12 @@ repository:
   status is on `status.madfam.io`; ticketing and `status.janua.dev` are
   unchecked roadmap items
   ([`docs/ROADMAP.md` → June 2026](docs/ROADMAP.md#june-2026-enterprise-support-infrastructure)).
-- **Virality and expansion.** Janua is in private alpha and its documentation
-  makes no adoption claims. Code still does: the healthcare solutions page
-  (`apps/website/app/(marketing)/solutions/healthcare/page.tsx`) and the
-  landing CTA (`apps/website/components/sections/cta.tsx`) print "Trusted by"
-  lines, and the welcome email template
-  (`apps/api/app/templates/email/welcome.html`) says the platform is trusted by
-  thousands of organizations. Those are code changes for the owner; the audit
-  recommends removing the healthcare line first.
+- **Virality and expansion.** Janua is in private alpha and makes no adoption
+  claims. The "Trusted by" lines on the healthcare solutions page and the
+  landing CTA, and the "trusted by thousands of organizations" sentence in the
+  welcome email (English and both Spanish variants), were removed on
+  2026-11-27. Publish a testimonial, logo or adoption claim only for a real,
+  named, consenting customer.
 
 ---
 

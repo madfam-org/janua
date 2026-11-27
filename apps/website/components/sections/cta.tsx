@@ -97,24 +97,6 @@ export function CTASection() {
             View pricing details
           </Link>
         </motion.div>
-
-        {/* Trust indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="mt-12 pt-8 border-t border-white/20"
-        >
-          <p className="text-sm text-white/60 mb-4">
-            Trusted by engineering teams at
-          </p>
-          <div className="flex gap-8 justify-center items-center opacity-70">
-            <div className="text-white font-semibold">MADFAM</div>
-            <div className="text-white font-semibold">Forge Sight</div>
-            <div className="text-white font-semibold">Innovaciones MADFAM</div>
-          </div>
-        </motion.div>
       </motion.div>
     </div>
   )
