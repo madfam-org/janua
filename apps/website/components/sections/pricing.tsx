@@ -55,7 +55,6 @@ export function PricingSection({ proMxn = null }: PricingSectionProps = {}) {
         'Passkey authentication',
         'Email + password auth',
         'Session management',
-        'Edge verification (<30ms)',
         'Community support',
         'Single region'
       ],

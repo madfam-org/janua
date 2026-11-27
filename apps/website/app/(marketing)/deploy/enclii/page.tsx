@@ -5,7 +5,6 @@ import {
   Shield,
   Zap,
   DollarSign,
-  Globe,
   Lock,
   CheckCircle,
   ArrowRight,
@@ -38,12 +37,6 @@ const benefits = [
     title: 'One-Click Deploy',
     description: 'Enclii\'s deployment system gets Janua running in minutes, not days.',
     highlight: '< 5 minute setup',
-  },
-  {
-    icon: Globe,
-    title: 'Edge-Ready',
-    description: 'Deploy Janua close to your users with Enclii\'s multi-region support.',
-    highlight: '< 50ms auth latency globally',
   },
 ]
 
